@@ -99,6 +99,7 @@ var facing := 1.0
 ## keyboard drives the fighter instead.
 var brain: CpuBrain
 var audio: Node
+var touch: Node
 
 var shadow: MeshInstance3D
 var lead_shadow: MeshInstance3D
@@ -135,6 +136,7 @@ func _ready() -> void:
 		return
 	facing = 1.0 if player_number == 1 else -1.0
 	audio = get_node_or_null("/root/GameAudio")
+	touch = get_node_or_null("/root/TouchInput")
 	_build_ground_contact()
 	_setup_sprite()
 	_apply_pose(Pose.IDLE, true)
@@ -259,6 +261,16 @@ func _gather_intent(delta: float) -> Dictionary:
 	previous_jump = jump_held
 	previous_punch = punch_held
 	previous_kick = kick_held
+
+	# The on-screen pad drives player one as a second set of keys. Its taps
+	# are read exactly once here, which is also why only player one asks:
+	# a second reader would swallow the press.
+	if player_number == 1 and touch != null and touch.active():
+		if absf(intent["move"]) < 0.01:
+			intent["move"] = touch.move
+		intent["jump"] = intent["jump"] or touch.take("jump")
+		intent["punch"] = intent["punch"] or touch.take("punch")
+		intent["kick"] = intent["kick"] or touch.take("kick")
 	return intent
 
 

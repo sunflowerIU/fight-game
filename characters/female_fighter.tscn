@@ -20,10 +20,10 @@ art_faces_right = false
 step_texture = ExtResource("3_step")
 punch_texture = ExtResource("4_punch")
 kick_texture = ExtResource("5_kick")
-idle_ground = PackedVector2Array(504, 1524, 210, 1524, 797, 1382)
-step_ground = PackedVector2Array(478, 1519, 295, 1519, 661, 1375)
-punch_ground = PackedVector2Array(503, 1521, 172, 1521, 834, 1386)
-kick_ground = PackedVector2Array(429, 1472, 722, 1472)
+idle_ground = PackedVector2Array(504, 1526, 160, 1526, 820, 1433)
+step_ground = PackedVector2Array(500, 1500, 420, 1500)
+punch_ground = PackedVector2Array(503, 1522, 135, 1522, 865, 1407)
+kick_ground = PackedVector2Array(700, 1497, 700, 1497)
 stance_width = 1.9
 
 [node name="BodyCollision" type="CollisionShape3D" parent="."]

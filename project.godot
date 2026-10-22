@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 MatchConfig="*res://autoload/match_config.gd"
 GameAudio="*res://autoload/game_audio.gd"
+TouchInput="*res://autoload/touch_input.gd"
 
 [display]
 
@@ -26,6 +27,9 @@ window/size/viewport_width=1600
 window/size/viewport_height=900
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+; Sensor landscape: the arena is a wide stage, and a phone held either way
+; up should work.
+window/handheld/orientation=4
 
 [physics]
 
@@ -34,3 +38,7 @@ window/stretch/aspect="expand"
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
+; Required for Android: textures are re-encoded to ETC2/ASTC on import.
+textures/vram_compression/import_etc2_astc=true

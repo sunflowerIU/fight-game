@@ -13,6 +13,11 @@ Pick one and the opponent takes the other. The opponent is the **CPU** by defaul
 
 ## Controls
 
+On a phone the on-screen pad appears automatically: direction arrows bottom
+left, jump/punch/kick bottom right, MENU at the top. It tracks each finger
+separately, so you can hold a direction and tap an attack at the same time.
+On a desktop it stays hidden unless you ask for it (see below).
+
 | Action | Player 1 | Player 2 |
 | --- | --- | --- |
 | Move | A / D | Left / Right arrows |
@@ -20,7 +25,11 @@ Pick one and the opponent takes the other. The opponent is the **CPU** by defaul
 | Punch | J | O |
 | Kick | K | P |
 
-**R** restarts after a knockout, **Esc** goes back to the character select.
+**R** restarts after a knockout, **Esc** (or Android's back button) goes back
+to the character select.
+
+Two-player mode needs a keyboard, so on a handheld the opponent is always the
+CPU.
 
 A punch deals 10 damage, a kick 16. First to lose all 100 health loses.
 
@@ -69,6 +78,36 @@ python3 tools/make_audio.py audio
 
 It needs `numpy`, `scipy` and `ffmpeg`. `autoload/game_audio.gd` owns playback: effects go through a small pool of players so hits can overlap, and music cross-fades between screens.
 
+## Android
+
+`build/HimalayanDuel.apk` is a signed release build: package
+`com.zapnp.himalayanduel`, version 1.0, arm64 only, Android 7.0 and up.
+Sideload it by copying it to the phone and opening it (Android will ask you to
+allow installs from that app the first time).
+
+Rebuilding it needs three things set up in Godot:
+
+1. The Android export templates for 4.7.2 (Editor → Manage Export Templates).
+2. An Android SDK with `build-tools` and `platform-tools`, pointed at from
+   Editor Settings → Export → Android.
+3. The signing key, which is already in the project at
+   `android/himalayan-duel.keystore` (alias `himalayanduel`, password
+   `himalaya`). The absolute path to it is in `export_presets.cfg` and will
+   need changing if the project moves.
+
+Then: Project → Export → Android → Export Project.
+
+Keep that keystore. Android will only accept an update to an installed app if
+it is signed with the same key. It is committed here so rebuilds keep working;
+if this ever goes to the Play Store, generate a fresh key and keep it private
+instead.
+
+`tools/apksigner/` holds a small stand-in for the Android SDK's `apksigner`,
+written against the JDK alone, which is how the committed APK was signed on a
+machine without the SDK. It implements APK Signature Scheme v2 only, which is
+enough because the Godot template requires Android 7.0 anyway. If you have the
+real Android SDK you do not need it.
+
 ## Where things live
 
 | | |
@@ -79,6 +118,8 @@ It needs `numpy`, `scipy` and `ffmpeg`. `autoload/game_audio.gd` owns playback: 
 | `scenes/nepal_arena.gd` | the stage, camera and fight HUD |
 | `characters/fighter_controller.gd` | movement, attacks, poses, ground contact |
 | `characters/cpu_brain.gd` | the computer opponent |
+| `scenes/touch_controls.gd` | the on-screen pad |
+| `autoload/touch_input.gd` | what the pad is currently pressing |
 | `tools/make_audio.py` | the music and sound effect synthesiser |
 
 To change damage, reach or attack timing, edit the constants at the top of `characters/fighter_controller.gd`. Walk speed, jump height and the arena walls are exported on each fighter scene.
@@ -93,8 +134,15 @@ godot --headless --path . --script res://tests/input_smoke.gd
 godot --headless --path . --script res://tests/pose_smoke.gd
 godot --headless --path . --script res://tests/cpu_smoke.gd
 godot --headless --path . res://tests/menu_smoke.tscn
+godot --headless --path . res://tests/touch_smoke.tscn
 ```
 
-`pose_smoke` reads the artwork back and fails if a recorded shoe row no longer matches where the picture actually stops, so a regenerated pose cannot silently leave a fighter floating. `cpu_smoke` puts each difficulty in front of a dummy and fails unless the harder levels really do land more. `menu_smoke` runs as a scene rather than with `--script`, because the menus need the autoloads and Godot only sets those up when a scene is running.
+`pose_smoke` reads the artwork back and fails if a recorded shoe row no longer matches where the picture actually stops, so a regenerated pose cannot silently leave a fighter floating. `cpu_smoke` puts each difficulty in front of a dummy and fails unless the harder levels really do land more. `menu_smoke` and `touch_smoke` run as scenes rather than with `--script`,
+because they need the autoloads and Godot only sets those up when a scene is
+running. `touch_smoke` feeds events to the pad directly, since a headless run
+has no display server to route touches through.
+
+To see the touch pad on a desktop, call `TouchInput.force(true)` — the easiest
+spot is the top of `scenes/nepal_arena.gd`'s `_ready`.
 
 Blocking, throws and combos are still to come.

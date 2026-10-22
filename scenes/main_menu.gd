@@ -34,7 +34,8 @@ func _ready() -> void:
 	quit_button.pressed.connect(_on_quit)
 
 	column.add_child(UiKit.spacer(26))
-	column.add_child(UiKit.label("Arrow keys or mouse to choose   ·   Enter to confirm", 17, Color("b9b3a6"), 4))
+	var hint := "Tap to choose" if TouchInput.active() else "Arrow keys or mouse to choose   ·   Enter to confirm"
+	column.add_child(UiKit.label(hint, 17, Color("b9b3a6"), 4))
 
 	GameAudio.play_music("res://audio/bgm_menu.ogg")
 	start_button.call_deferred("grab_focus")
@@ -59,3 +60,9 @@ func _on_start() -> void:
 func _on_quit() -> void:
 	GameAudio.play("ui_back")
 	get_tree().quit()
+
+
+## Android's back button on the title screen leaves the game.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		get_tree().quit()

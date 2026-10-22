@@ -49,6 +49,7 @@ func _ready() -> void:
 		fighter_one.defeated.connect(_on_defeated)
 		fighter_two.defeated.connect(_on_defeated)
 		_make_hud()
+		_make_touch_controls()
 		_begin_round()
 
 
@@ -327,8 +328,10 @@ func _make_hud() -> void:
 
 	health_bar_one = _make_fighter_plate(canvas, fighter_one, false, Color("c86c4e"))
 	health_bar_two = _make_fighter_plate(canvas, fighter_two, true, Color("3caa9e"))
-	_make_hud_label(canvas, "HIMALAYAN DUEL", 0.37, 0.63, 0, 24, HORIZONTAL_ALIGNMENT_CENTER, 22)
-	_make_hud_label(canvas, _controls_hint(), 0.0, 1.0, 0, -44, HORIZONTAL_ALIGNMENT_CENTER, 15, true)
+	if not _touch_active():
+		# On a handheld the banner's slot belongs to the pad's menu button.
+		_make_hud_label(canvas, "HIMALAYAN DUEL", 0.37, 0.63, 0, 24, HORIZONTAL_ALIGNMENT_CENTER, 22)
+		_make_hud_label(canvas, _controls_hint(), 0.0, 1.0, 0, -44, HORIZONTAL_ALIGNMENT_CENTER, 15, true)
 
 	announce_label = Label.new()
 	announce_label.visible = false
@@ -439,6 +442,37 @@ func _badge_for(fighter: FighterController) -> String:
 	return "P1" if fighter.player_number == 1 else "P2"
 
 
+func _touch_active() -> bool:
+	var touch := get_node_or_null("/root/TouchInput")
+	return touch != null and touch.active()
+
+
+## The on-screen pad goes in its own layer above the HUD, and only when there
+## is a touchscreen to use it. Any press still latched from the menus is
+## dropped, so the round cannot open with a phantom punch.
+func _make_touch_controls() -> void:
+	if not _touch_active():
+		return
+	var touch := get_node_or_null("/root/TouchInput")
+	touch.release_all()
+	var layer := CanvasLayer.new()
+	layer.name = "Touch controls"
+	layer.layer = 2
+	add_child(layer)
+	var pad := TouchControls.new()
+	pad.name = "Pad"
+	layer.add_child(pad)
+	pad.menu_requested.connect(_leave_to_select)
+
+
+func _leave_to_select() -> void:
+	_audio_play("ui_back")
+	var touch := get_node_or_null("/root/TouchInput")
+	if touch != null:
+		touch.release_all()
+	get_tree().change_scene_to_file(SELECT_SCENE)
+
+
 func _controls_hint() -> String:
 	var config := get_node_or_null("/root/MatchConfig")
 	var left := "P1  A/D move   Space jump   J punch   K kick"
@@ -547,12 +581,17 @@ func _on_defeated(player: int) -> void:
 	result_label.visible = true
 
 
+## Android's back button arrives as this notification rather than a key.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and not Engine.is_editor_hint():
+		_leave_to_select()
+
+
 func _input(event: InputEvent) -> void:
 	if Engine.is_editor_hint() or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	if event.physical_keycode == KEY_ESCAPE:
-		_audio_play("ui_back")
-		get_tree().change_scene_to_file(SELECT_SCENE)
+		_leave_to_select()
 	elif event.physical_keycode == KEY_R and match_over:
 		_audio_play("ui_select")
 		get_tree().reload_current_scene()

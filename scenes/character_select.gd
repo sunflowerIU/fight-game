@@ -61,6 +61,12 @@ func _ready() -> void:
 	actions.add_child(back)
 
 	GameAudio.play_music("res://audio/bgm_menu.ogg")
+	# One pad cannot drive two fighters, so a handheld plays against the CPU.
+	if TouchInput.active():
+		MatchConfig.opponent = MatchSettings.Opponent.CPU
+		MatchConfig.player_two_fighter = MatchConfig.other_fighter(MatchConfig.player_one_fighter)
+		opponent_chips["HUMAN"].disabled = true
+		opponent_chips["HUMAN"].tooltip_text = "Two players need two keyboards"
 	_refresh()
 	ready_to_listen = true
 	fight_button.call_deferred("grab_focus")
@@ -201,6 +207,11 @@ func _on_fight() -> void:
 func _on_back() -> void:
 	GameAudio.play("ui_back")
 	get_tree().change_scene_to_file(MENU_SCENE)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		_on_back()
 
 
 func _unhandled_input(event: InputEvent) -> void:
