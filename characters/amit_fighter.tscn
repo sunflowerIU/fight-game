@@ -14,15 +14,23 @@ height = 4.8
 collision_layer = 2
 collision_mask = 3
 script = ExtResource("1_script")
+display_name = "AMIT"
+art_faces_right = true
 step_texture = ExtResource("3_step")
 punch_texture = ExtResource("4_punch")
 kick_texture = ExtResource("5_kick")
+idle_ground = PackedVector2Array(562, 1512, 845, 1512, 279, 1357)
+step_ground = PackedVector2Array(538, 1486, 721, 1486, 354, 1314)
+punch_ground = PackedVector2Array(569, 1504, 876, 1504, 262, 1293)
+kick_ground = PackedVector2Array(591, 1424, 308, 1424)
+stance_width = 1.9
 
 [node name="BodyCollision" type="CollisionShape3D" parent="."]
 position = Vector3(0, 2.4, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="FighterArt" type="Sprite3D" parent="."]
-position = Vector3(0, 2.46, 0)
+[node name="ArtPivot" type="Node3D" parent="."]
+
+[node name="FighterArt" type="Sprite3D" parent="ArtPivot"]
 pixel_size = 0.0032
 texture = ExtResource("2_art")

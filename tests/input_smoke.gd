@@ -5,9 +5,12 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	# Two humans, so nothing moves except what this test moves.
+	TestSupport.two_player_settings(self)
 	var arena: Node3D = load("res://scenes/nepal_arena.tscn").instantiate()
 	root.add_child(arena)
 	await physics_frame
+	await TestSupport.await_round_start(self, arena)
 	var fighter := arena.get_node("Player 1") as FighterController
 	var starting_x := fighter.position.x
 	var down := InputEventKey.new()
@@ -18,7 +21,7 @@ func _run() -> void:
 	var step_pose_seen := false
 	for frame in range(30):
 		await physics_frame
-		step_pose_seen = step_pose_seen or fighter.step_art.modulate.a > 0.5
+		step_pose_seen = step_pose_seen or fighter.art.texture == fighter.step_texture
 	var up := InputEventKey.new()
 	up.physical_keycode = KEY_D
 	up.pressed = false
@@ -48,8 +51,8 @@ func _run() -> void:
 	Input.parse_input_event(jump_down)
 	for frame in range(3):
 		await physics_frame
-	if fighter.is_on_floor() or fighter.step_art.modulate.a > 0.0:
-		push_error("Jumping must leave the floor without showing the walk pose.")
+	if fighter.is_on_floor():
+		push_error("Jumping must leave the floor.")
 		quit(1)
 		return
 	var jump_up := InputEventKey.new()

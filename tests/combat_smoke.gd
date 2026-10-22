@@ -6,9 +6,12 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	# Two humans, so nothing moves except what this test moves.
+	TestSupport.two_player_settings(self)
 	var arena: Node3D = load("res://scenes/nepal_arena.tscn").instantiate()
 	root.add_child(arena)
 	await physics_frame
+	await TestSupport.await_round_start(self, arena)
 	var player_one := arena.get_node("Player 1") as FighterController
 	var player_two := arena.get_node("Player 2") as FighterController
 	if player_one == null or player_two == null:

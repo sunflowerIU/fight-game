@@ -15,16 +15,23 @@ collision_layer = 2
 collision_mask = 3
 script = ExtResource("1_script")
 player_number = 2
+display_name = "JANAKI"
 art_faces_right = false
 step_texture = ExtResource("3_step")
 punch_texture = ExtResource("4_punch")
 kick_texture = ExtResource("5_kick")
+idle_ground = PackedVector2Array(504, 1524, 210, 1524, 797, 1382)
+step_ground = PackedVector2Array(478, 1519, 295, 1519, 661, 1375)
+punch_ground = PackedVector2Array(503, 1521, 172, 1521, 834, 1386)
+kick_ground = PackedVector2Array(429, 1472, 722, 1472)
+stance_width = 1.9
 
 [node name="BodyCollision" type="CollisionShape3D" parent="."]
 position = Vector3(0, 2.4, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="FighterArt" type="Sprite3D" parent="."]
-position = Vector3(0, 2.46, 0)
+[node name="ArtPivot" type="Node3D" parent="."]
+
+[node name="FighterArt" type="Sprite3D" parent="ArtPivot"]
 pixel_size = 0.0032
 texture = ExtResource("2_art")

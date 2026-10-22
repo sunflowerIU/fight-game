@@ -11,9 +11,14 @@ config_version=5
 [application]
 
 config/name="Himalayan Arena"
-run/main_scene="res://scenes/nepal_arena.tscn"
+run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+MatchConfig="*res://autoload/match_config.gd"
+GameAudio="*res://autoload/game_audio.gd"
 
 [display]
 

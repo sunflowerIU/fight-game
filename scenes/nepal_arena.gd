@@ -1,10 +1,18 @@
 @tool
 extends Node3D
 
-## A self-contained fighting stage. Player spawn markers are at x = -3 and +3.
+## A self-contained fighting stage. Which fighters appear, whether player two
+## is a person or the computer, and how hard the computer plays all come from
+## the MatchConfig autoload that the menus fill in.
 const PANORAMA = preload("res://assets/nepal_himalaya.png")
-const FIGHTER_SCENE = preload("res://characters/amit_fighter.tscn")
-const FEMALE_FIGHTER_SCENE = preload("res://characters/female_fighter.tscn")
+const SELECT_SCENE := "res://scenes/character_select.tscn"
+## Used when the arena is opened on its own, with no menu to ask.
+const DEFAULT_SCENES := {
+	"amit": "res://characters/amit_fighter.tscn",
+	"janaki": "res://characters/female_fighter.tscn",
+}
+## How long the bell rings before the fighters are let loose.
+const INTRO_LENGTH := 1.35
 
 var stone := _mat(Color("60615f"), 0.91)
 var pale_stone := _mat(Color("797b73"), 0.88)
@@ -20,7 +28,9 @@ var fight_camera: Camera3D
 var health_bar_one: ProgressBar
 var health_bar_two: ProgressBar
 var result_label: Label
+var announce_label: Label
 var match_over := false
+var intro_timer := 0.0
 
 
 func _ready() -> void:
@@ -39,14 +49,18 @@ func _ready() -> void:
 		fighter_one.defeated.connect(_on_defeated)
 		fighter_two.defeated.connect(_on_defeated)
 		_make_hud()
+		_begin_round()
 
 
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or fighter_one == null or fighter_two == null:
 		return
+	_tick_intro(delta)
 	var separation := absf(fighter_one.global_position.x - fighter_two.global_position.x)
-	var center_x := clampf((fighter_one.global_position.x + fighter_two.global_position.x) * 0.5, -2.5, 2.5)
-	var distance := maxf(11.5, 5.5 + separation * 0.9)
+	var center_x := clampf((fighter_one.global_position.x + fighter_two.global_position.x) * 0.5, -3.4, 3.4)
+	# Capped so the camera never backs off far enough to reveal that the
+	# terrace is a floating slab, or to shrink the fighters.
+	var distance := clampf(5.5 + separation * 0.85, 11.5, 15.5)
 	var follow := 1.0 - exp(-5.0 * delta)
 	fight_camera.position.x = lerpf(fight_camera.position.x, center_x, follow)
 	fight_camera.position.z = lerpf(fight_camera.position.z, distance, follow)
@@ -136,7 +150,10 @@ func _make_stage() -> void:
 	var box_shape := BoxShape3D.new()
 	box_shape.size = Vector3(22.4, 0.75, 20.0)
 	shape.shape = box_shape
-	shape.position = Vector3(0, -0.42, -5.95)
+	# The collision top is raised to the top face of the paving slabs rather
+	# than the platform block, so a fighter's feet rest on the stone they are
+	# drawn standing on instead of sinking a few centimetres into it.
+	shape.position = Vector3(0, FighterController.GROUND_Y - 0.375, -5.95)
 	body.add_child(shape)
 
 	# Individual slabs break up the floor under grazing light.
@@ -269,17 +286,34 @@ func _make_camera_and_markers() -> void:
 	for side in [-1, 1]:
 		var spawn := Marker3D.new()
 		spawn.name = "Player1Spawn" if side < 0 else "Player2Spawn"
-		spawn.position = Vector3(float(side) * 3.0, 0.15, 0)
+		spawn.position = Vector3(float(side) * 3.2, FighterController.GROUND_Y, 0)
 		spawn.rotation.y = -PI / 2.0 if side < 0 else PI / 2.0
 		add_child(spawn)
-	fighter_one = FIGHTER_SCENE.instantiate() as FighterController
-	fighter_one.name = "Player 1"
-	fighter_one.position = Vector3(-3.0, 0.15, 0.2)
-	add_child(fighter_one)
-	fighter_two = FEMALE_FIGHTER_SCENE.instantiate() as FighterController
-	fighter_two.name = "Player 2"
-	fighter_two.position = Vector3(3.0, 0.15, 0.2)
-	add_child(fighter_two)
+	# Spawning exactly on the paving avoids an opening-frame drop and landing
+	# squash, so the round starts with both fighters already settled.
+	fighter_one = _spawn_fighter(1, -3.2)
+	fighter_two = _spawn_fighter(2, 3.2)
+
+
+## Builds one fighter from whatever the menus chose, falling back to the
+## default pairing when the arena is opened straight from the editor.
+func _spawn_fighter(player: int, x: float) -> FighterController:
+	var config := get_node_or_null("/root/MatchConfig")
+	var id := "amit" if player == 1 else "janaki"
+	if config != null:
+		id = config.player_one_fighter if player == 1 else config.player_two_fighter
+	var scene: PackedScene = config.fighter_scene(id) if config != null else load(DEFAULT_SCENES[id])
+	var fighter := scene.instantiate() as FighterController
+	fighter.name = "Player %d" % player
+	# Set before the fighter enters the tree, because it decides which keys it
+	# listens to and which way it starts facing. This is also what lets both
+	# players pick the same character for a mirror match.
+	fighter.player_number = player
+	fighter.position = Vector3(x, FighterController.GROUND_Y, 0.2)
+	if player == 2 and config != null and config.opponent_is_cpu():
+		fighter.brain = CpuBrain.new(config.difficulty)
+	add_child(fighter)
+	return fighter
 
 
 func _make_hud() -> void:
@@ -291,52 +325,146 @@ func _make_hud() -> void:
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(canvas)
 
-	health_bar_one = _make_health_bar(canvas, Color("c86c4e"), false)
-	health_bar_two = _make_health_bar(canvas, Color("3caa9e"), true)
-	_make_hud_label(canvas, "PLAYER 1", 0.0, 0.48, 35, 20, HORIZONTAL_ALIGNMENT_LEFT, 20)
-	_make_hud_label(canvas, "PLAYER 2", 0.52, 1.0, 20, 20, HORIZONTAL_ALIGNMENT_RIGHT, 20)
-	_make_hud_label(canvas, "HIMALAYAN DUEL", 0.37, 0.63, 0, 21, HORIZONTAL_ALIGNMENT_CENTER, 23)
-	_make_hud_label(canvas, "P1  A/D move   Space jump   J punch   K kick        P2  ←/→ move   ↑ jump   O punch   P kick", 0.0, 1.0, 0, -48, HORIZONTAL_ALIGNMENT_CENTER, 16, true)
+	health_bar_one = _make_fighter_plate(canvas, fighter_one, false, Color("c86c4e"))
+	health_bar_two = _make_fighter_plate(canvas, fighter_two, true, Color("3caa9e"))
+	_make_hud_label(canvas, "HIMALAYAN DUEL", 0.37, 0.63, 0, 24, HORIZONTAL_ALIGNMENT_CENTER, 22)
+	_make_hud_label(canvas, _controls_hint(), 0.0, 1.0, 0, -44, HORIZONTAL_ALIGNMENT_CENTER, 15, true)
+
+	announce_label = Label.new()
+	announce_label.visible = false
+	announce_label.anchor_left = 0.2
+	announce_label.anchor_right = 0.8
+	announce_label.anchor_top = 0.24
+	announce_label.anchor_bottom = 0.42
+	announce_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	announce_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	announce_label.add_theme_font_size_override("font_size", 74)
+	announce_label.add_theme_color_override("font_color", Color("ffe4ab"))
+	announce_label.add_theme_color_override("font_outline_color", Color("24212b"))
+	announce_label.add_theme_constant_override("outline_size", 10)
+	canvas.add_child(announce_label)
 
 	result_label = Label.new()
 	result_label.visible = false
-	result_label.anchor_left = 0.25
-	result_label.anchor_right = 0.75
+	result_label.anchor_left = 0.2
+	result_label.anchor_right = 0.8
 	result_label.anchor_top = 0.32
-	result_label.anchor_bottom = 0.58
+	result_label.anchor_bottom = 0.60
 	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	result_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	result_label.add_theme_font_size_override("font_size", 48)
+	result_label.add_theme_font_size_override("font_size", 46)
 	result_label.add_theme_color_override("font_color", Color("fff0cc"))
 	result_label.add_theme_color_override("font_outline_color", Color("24212b"))
 	result_label.add_theme_constant_override("outline_size", 8)
 	canvas.add_child(result_label)
 
 
-func _make_health_bar(canvas: Control, color: Color, right_side: bool) -> ProgressBar:
+## Avatar, name and health bar for one fighter, mirrored for player two so
+## both plates read outward from the middle of the screen.
+func _make_fighter_plate(canvas: Control, fighter: FighterController, right_side: bool, colour: Color) -> ProgressBar:
+	var plate := HBoxContainer.new()
+	plate.name = "%s plate" % fighter.name
+	plate.anchor_left = 0.52 if right_side else 0.0
+	plate.anchor_right = 1.0 if right_side else 0.48
+	plate.offset_left = 14 if right_side else 24
+	plate.offset_right = -24 if right_side else -14
+	plate.offset_top = 26
+	plate.offset_bottom = 118
+	plate.add_theme_constant_override("separation", 12)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	canvas.add_child(plate)
+
+	var portrait := TextureRect.new()
+	portrait.texture = _avatar_for(fighter)
+	portrait.custom_minimum_size = Vector2(78, 78)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+
+	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 4)
+
+	var caption := HBoxContainer.new()
+	caption.add_theme_constant_override("separation", 8)
+	caption.alignment = BoxContainer.ALIGNMENT_END if right_side else BoxContainer.ALIGNMENT_BEGIN
+
+	var name_label := Label.new()
+	name_label.text = fighter.display_name
+	name_label.add_theme_font_size_override("font_size", 27)
+	name_label.add_theme_color_override("font_color", Color("fff3db"))
+	name_label.add_theme_color_override("font_outline_color", Color("23202b"))
+	name_label.add_theme_constant_override("outline_size", 6)
+
+	var badge := Label.new()
+	badge.text = _badge_for(fighter)
+	badge.add_theme_font_size_override("font_size", 15)
+	badge.add_theme_color_override("font_color", colour.lightened(0.35))
+	badge.add_theme_color_override("font_outline_color", Color("23202b"))
+	badge.add_theme_constant_override("outline_size", 5)
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+
+	if right_side:
+		caption.add_child(badge)
+		caption.add_child(name_label)
+	else:
+		caption.add_child(name_label)
+		caption.add_child(badge)
+	column.add_child(caption)
+
+	var bar := _make_health_bar(colour)
+	column.add_child(bar)
+
+	if right_side:
+		plate.add_child(column)
+		plate.add_child(portrait)
+	else:
+		plate.add_child(portrait)
+		plate.add_child(column)
+	return bar
+
+
+func _avatar_for(fighter: FighterController) -> Texture2D:
+	var config := get_node_or_null("/root/MatchConfig")
+	if config != null:
+		for id in config.fighter_ids():
+			if config.display_name(id) == fighter.display_name:
+				return config.avatar(id)
+	return null
+
+
+func _badge_for(fighter: FighterController) -> String:
+	if fighter.brain != null:
+		var config := get_node_or_null("/root/MatchConfig")
+		return "CPU · %s" % (config.difficulty_name() if config != null else "MEDIUM")
+	return "P1" if fighter.player_number == 1 else "P2"
+
+
+func _controls_hint() -> String:
+	var config := get_node_or_null("/root/MatchConfig")
+	var left := "P1  A/D move   Space jump   J punch   K kick"
+	if config != null and config.opponent_is_cpu():
+		return "%s        R rematch   Esc change fighter" % left
+	return "%s        P2  ←/→ move   ↑ jump   O punch   P kick        R rematch   Esc menu" % left
+
+
+func _make_health_bar(colour: Color) -> ProgressBar:
 	var bar := ProgressBar.new()
 	bar.min_value = 0
 	bar.max_value = FighterController.MAX_HEALTH
 	bar.value = FighterController.MAX_HEALTH
 	bar.show_percentage = false
-	bar.anchor_left = 0.54 if right_side else 0.0
-	bar.anchor_right = 1.0 if right_side else 0.46
-	bar.offset_left = 12 if right_side else 35
-	bar.offset_right = -35 if right_side else -12
-	bar.offset_top = 52
-	bar.offset_bottom = 81
+	bar.custom_minimum_size = Vector2(0, 26)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var background := StyleBoxFlat.new()
 	background.bg_color = Color("282a34")
-	background.border_width_left = 2
-	background.border_width_top = 2
-	background.border_width_right = 2
-	background.border_width_bottom = 2
+	background.set_border_width_all(2)
 	background.border_color = Color("e0c796")
+	background.set_corner_radius_all(4)
 	bar.add_theme_stylebox_override("background", background)
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = color
+	fill.bg_color = colour
+	fill.set_corner_radius_all(3)
 	bar.add_theme_stylebox_override("fill", fill)
-	canvas.add_child(bar)
 	return bar
 
 
@@ -359,6 +487,47 @@ func _make_hud_label(canvas: Control, caption: String, left: float, right: float
 	canvas.add_child(label)
 
 
+## Holds both fighters still for a beat while the bell rings, so a round does
+## not begin with someone already mid-punch.
+func _begin_round() -> void:
+	intro_timer = INTRO_LENGTH
+	fighter_one.match_over = true
+	fighter_two.match_over = true
+	if announce_label != null:
+		announce_label.text = "READY"
+		announce_label.visible = true
+	_audio_play("round_start", -2.0)
+	_music("res://audio/bgm_arena.ogg")
+
+
+func _tick_intro(delta: float) -> void:
+	if intro_timer <= 0.0:
+		return
+	intro_timer -= delta
+	if announce_label != null and intro_timer <= INTRO_LENGTH * 0.45:
+		announce_label.text = "FIGHT!"
+	if intro_timer > 0.0:
+		return
+	fighter_one.match_over = false
+	fighter_two.match_over = false
+	if announce_label != null:
+		var fade := create_tween()
+		fade.tween_property(announce_label, "modulate:a", 0.0, 0.45)
+		fade.tween_callback(func(): announce_label.visible = false)
+
+
+func _audio_play(sound: String, volume := 0.0) -> void:
+	var audio := get_node_or_null("/root/GameAudio")
+	if audio != null:
+		audio.play(sound, volume)
+
+
+func _music(path: String) -> void:
+	var audio := get_node_or_null("/root/GameAudio")
+	if audio != null:
+		audio.play_music(path)
+
+
 func _on_health_changed(player: int, current_health: int) -> void:
 	if player == 1:
 		health_bar_one.value = current_health
@@ -372,13 +541,18 @@ func _on_defeated(player: int) -> void:
 	match_over = true
 	fighter_one.match_over = true
 	fighter_two.match_over = true
-	var winner := 2 if player == 1 else 1
-	result_label.text = "PLAYER %d WINS!\nPress R to fight again" % winner
+	var winner := fighter_two if player == 1 else fighter_one
+	_audio_play("ko")
+	result_label.text = "%s WINS!\nR to fight again   ·   Esc to change fighter" % winner.display_name
 	result_label.visible = true
 
 
 func _input(event: InputEvent) -> void:
-	if Engine.is_editor_hint() or not match_over:
+	if Engine.is_editor_hint() or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
-	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_R:
+	if event.physical_keycode == KEY_ESCAPE:
+		_audio_play("ui_back")
+		get_tree().change_scene_to_file(SELECT_SCENE)
+	elif event.physical_keycode == KEY_R and match_over:
+		_audio_play("ui_select")
 		get_tree().reload_current_scene()
