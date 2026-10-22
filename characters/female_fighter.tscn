@@ -1,0 +1,30 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://characters/fighter_controller.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/characters/female_fighter.png" id="2_art"]
+[ext_resource type="Texture2D" path="res://assets/characters/female_step.png" id="3_step"]
+[ext_resource type="Texture2D" path="res://assets/characters/female_punch.png" id="4_punch"]
+[ext_resource type="Texture2D" path="res://assets/characters/female_kick.png" id="5_kick"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.46
+height = 4.8
+
+[node name="FemaleFighter" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+script = ExtResource("1_script")
+player_number = 2
+art_faces_right = false
+step_texture = ExtResource("3_step")
+punch_texture = ExtResource("4_punch")
+kick_texture = ExtResource("5_kick")
+
+[node name="BodyCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 2.4, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="FighterArt" type="Sprite3D" parent="."]
+position = Vector3(0, 2.46, 0)
+pixel_size = 0.0032
+texture = ExtResource("2_art")
